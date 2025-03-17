@@ -11,7 +11,7 @@ permissions:
 
 env:
   PROJECT_NAME: PsychEngine
-  REPO_PATH: matthewfro1717/FNF-PsychEngine-Mobile
+  REPO_PATH: MatthewFro191919/FNF-PsychEngine-Mobile
 
 jobs:
   get-commit-hash:
