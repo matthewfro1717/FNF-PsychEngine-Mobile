@@ -464,7 +464,6 @@ class PlayState extends MusicBeatState
 					var height = Std.parseInt(parts[1]);
 
 					if (width != null && height != null) {
-						CoolUtil.resetResScale(width, height);
 						FlxG.resizeGame(width, height);
 						lime.app.Application.current.window.width = width;
 						lime.app.Application.current.window.height = height;
