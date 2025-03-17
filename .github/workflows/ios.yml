@@ -1,0 +1,28 @@
+name: Main
+
+on: 
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  Build:
+    name: ${{ matrix.name }}
+    strategy:
+      matrix:
+        include:
+          - name: iOS
+            os: macos-15
+            buildArgs: "ios -nosign"
+            setupCommand: sh ./setup/unix.sh
+            artifactName: iOSBuild
+            artifactPath: "export/release/ios/build/Release-iphoneos/*.ipa"
+    uses: ./.github/workflows/build.yml
+    with:
+        name: ${{ matrix.name }}
+        os: ${{ matrix.os }}
+        buildArgs: ${{ matrix.buildArgs }}
+        setupCommand: ${{ matrix.setupCommand }}
+        artifactName: ${{ matrix.artifactName }}
+        artifactPath: ${{ matrix.artifactPath }}
