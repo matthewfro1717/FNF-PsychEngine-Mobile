@@ -1,248 +1,187 @@
 package;
 
-import debug.FPSCounter;
-import backend.Highscore;
 import flixel.FlxGame;
 import openfl.Lib;
 import openfl.display.Sprite;
-import openfl.events.Event;
-import openfl.display.StageScaleMode;
+import debug.FPSCounter;
 import lime.app.Application;
-import states.TitleState;
-#if HSCRIPT_ALLOWED
-import crowplexus.iris.Iris;
-import psychlua.HScript.HScriptInfos;
-#end
-import mobile.backend.MobileScaleMode;
-import openfl.events.KeyboardEvent;
-import lime.system.System as LimeSystem;
+import backend.SSPlugin as ScreenShotPlugin;
 
 #if linux
 import lime.graphics.Image;
 #end
-#if COPYSTATE_ALLOWED
-import states.CopyState;
-#end
-import backend.Highscore;
 
-// NATIVE API STUFF, YOU CAN IGNORE THIS AND SCROLL //
-#if (linux && !debug)
+#if desktop
+import backend.ALSoftConfig; // Just to make sure DCE doesn't remove this, since it's not directly referenced anywhere else.
+#end
+
+using StringTools;
+
+#if linux
 @:cppInclude('./external/gamemode_client.h')
-@:cppFileCode('#define GAMEMODE_AUTO')
-#end
-#if windows
-@:buildXml('
-<target id="haxe">
-	<lib name="wininet.lib" if="windows" />
-	<lib name="dwmapi.lib" if="windows" />
-</target>
-')
 @:cppFileCode('
-#include <windows.h>
-#include <winuser.h>
-#pragma comment(lib, "Shell32.lib")
-extern "C" HRESULT WINAPI SetCurrentProcessExplicitAppUserModelID(PCWSTR AppID);
+	#define GAMEMODE_AUTO
 ')
 #end
-// // // // // // // // //
-class Main extends Sprite
-{
-	var game = {
-		width: 1280, // WINDOW width
-		height: 720, // WINDOW height
-		initialState: TitleState, // initial game state
-		framerate: 60, // default framerate
-		skipSplash: true, // if the default flixel splash screen should be skipped
-		startFullscreen: false // if the game should start at fullscreen mode
+class Main extends Sprite {
+	final game = {
+		width: 1280,
+		height: 720,
+		initialState: InitState.new,
+		zoom: -1.0,
+		framerate: 60,
+		skipSplash: true,
+		startFullscreen: false
 	};
 
 	public static var fpsVar:FPSCounter;
 
-	public static final platform:String = #if mobile "Phones" #else "PCs" #end;
+	public static final superDangerMode:Bool = Sys.args().contains("-troll");
+
+    public static final __superCoolErrorMessagesArray:Array<String> = [
+        "A fatal error has occ- wait what?",
+        "missigno.",
+        "oopsie daisies!! you did a fucky wucky!!",
+        "i think you fogot a semicolon",
+        "null balls reference",
+        "get friday night funkd'",
+        "engine skipped a heartbeat",
+        "Impossible...",
+        "Patience is key for success... Don't give up.",
+        "It's no longer in its early stages... is it?",
+        "It took me half a day to code that in",
+        "You should make an issue... NOW!!",
+        "> Crash Handler written by: yoshicrafter29",
+        "broken ch-... wait what are we talking about",
+        "could not access variable you.dad",
+        "What have you done...",
+        "THERE ARENT COUGARS IN SCRIPTING!!! I HEARD IT!!",
+        "no, thats not from system.windows.forms",
+        "you better link a screenshot if you make an issue, or at least the crash.txt",
+    	"stack trace more like dunno i dont have any jokes",
+        "oh the misery. everybody wants to be my enemy",
+        "have you heard of soulles dx",
+        "i thought it was invincible",
+        "did you deleted coconut.png",
+        "have you heard of missing json's cousin null function reference",
+        "sad that linux users wont see this banger of a crash handler",
+		"woopsie",
+        "oopsie",
+        "woops",
+        "silly me",
+        "my bad",
+        "first time, huh?",
+        "did somebody say yoga",
+        "we forget a thousand things everyday... make sure this is one of them.",
+        "SAY GOODBYE TO YOUR KNEECAPS, CHUCKLEHEAD",
+        "motherfucking ordinal 344 (TaskDialog) forcing me to create a even fancier window",
+        "Died due to missing a sawblade. (Press Space to dodge!)",
+        "yes rico, kaboom.",
+        "hey, while in freeplay, press shift while pressing space",
+        "goofy ahh engine",
+        "pssst, try typing debug7 in the options menu",
+        "this crash handler is sponsored by rai-",
+        "",
+        "did you know a jiffy is an actual measurement of time",
+        "how many hurt notes did you put",
+        "FPS: 0",
+        "\r\ni am a secret message",
+        "this is garnet",
+        "Error: Sorry i already have a girlfriend",
+        "did you know theres a total of 51 silly messages",
+        "whoopsies looks like i forgot to fix this",
+        "Game used Crash. It's super effective!",
+		"What in the fucking shit fuck dick!",
+		"The engine got constipated. Sad.",
+		"shit.",
+		"NULL",
+		"Five big booms. BOOM, BOOM, BOOM, BOOM, BOOM!!!!!!!!!!",
+		"uhhhhhhhhhhhhhhhh... i dont think this is normal...",
+		"lobotomy moment",
+		"ARK: Survival Evolved"
+    ];
 
 	// You can pretty much ignore everything from here on - your code should go in your states.
 
-	public static function main():Void
-	{
+	public static function main():Void {
 		Lib.current.addChild(new Main());
-		#if cpp
-		cpp.NativeGc.enable(true);
-		#elseif hl
-		hl.Gc.enable(true);
-		#end
 	}
 
-	public function new()
-	{
+	public function new() {
 		super();
-		#if mobile
-		#if android
-		StorageUtil.requestPermissions();
+		#if windows //DPI AWARENESS BABY
+		@:functionCode('
+		#include <Windows.h>
+		SetProcessDPIAware()
+		')
 		#end
-		Sys.setCwd(StorageUtil.getStorageDirectory());
-		#end
-		backend.CrashHandler.init();
+		CrashHandler.init();
+		setupGame();
+	}
 
-		#if windows
-		// DPI Scaling fix for windows 
-		// this shouldn't be needed for other systems
-		// Credit to YoshiCrafter29 for finding this function
-		untyped __cpp__("SetProcessDPIAware();");
+	public static var askedToUpdate:Bool = false;
 
-		var display = lime.system.System.getDisplay(0);
-		if (display != null) {
-			var dpiScale:Float = display.dpi / 96;
-			Application.current.window.width = Std.int(game.width * dpiScale);
-			Application.current.window.height = Std.int(game.height * dpiScale);
+	private function setupGame():Void {
+		var stageWidth:Int = Lib.current.stage.stageWidth;
+		var stageHeight:Int = Lib.current.stage.stageHeight;
 
-			Application.current.window.x = Std.int((Application.current.window.display.bounds.width - Application.current.window.width) / 2);
-			Application.current.window.y = Std.int((Application.current.window.display.bounds.height - Application.current.window.height) / 2);
-		}
-		#end
+		if (game.zoom == -1.0) {
+			var ratioX:Float = stageWidth / game.width;
+			var ratioY:Float = stageHeight / game.height;
+			game.zoom = Math.min(ratioX, ratioY);
+			game.width = Math.ceil(stageWidth / game.zoom);
+			game.height = Math.ceil(stageHeight / game.zoom);
+		};
 
-		#if VIDEOS_ALLOWED
-		hxvlc.util.Handle.init(#if (hxvlc >= "1.8.0")  ['--no-lua'] #end);
-		#end
-
-		#if LUA_ALLOWED
-		Mods.pushGlobalMods();
-		#end
-		Mods.loadTopMod();
-
-		FlxG.save.bind('funkin', CoolUtil.getSavePath());
-		Highscore.load();
-
-		#if HSCRIPT_ALLOWED
-		Iris.warn = function(x, ?pos:haxe.PosInfos) {
-			Iris.logLevel(WARN, x, pos);
-			var newPos:HScriptInfos = cast pos;
-			if (newPos.showLine == null) newPos.showLine = true;
-			var msgInfo:String = (newPos.funcName != null ? '(${newPos.funcName}) - ' : '')  + '${newPos.fileName}:';
-			#if LUA_ALLOWED
-			if (newPos.isLua == true) {
-				msgInfo += 'HScript:';
-				newPos.showLine = false;
-			}
-			#end
-			if (newPos.showLine == true) {
-				msgInfo += '${newPos.lineNumber}:';
-			}
-			msgInfo += ' $x';
-			if (PlayState.instance != null)
-				PlayState.instance.addTextToDebug('WARNING: $msgInfo', FlxColor.YELLOW);
-		}
-		Iris.error = function(x, ?pos:haxe.PosInfos) {
-			Iris.logLevel(ERROR, x, pos);
-			var newPos:HScriptInfos = cast pos;
-			if (newPos.showLine == null) newPos.showLine = true;
-			var msgInfo:String = (newPos.funcName != null ? '(${newPos.funcName}) - ' : '')  + '${newPos.fileName}:';
-			#if LUA_ALLOWED
-			if (newPos.isLua == true) {
-				msgInfo += 'HScript:';
-				newPos.showLine = false;
-			}
-			#end
-			if (newPos.showLine == true) {
-				msgInfo += '${newPos.lineNumber}:';
-			}
-			msgInfo += ' $x';
-			if (PlayState.instance != null)
-				PlayState.instance.addTextToDebug('ERROR: $msgInfo', FlxColor.RED);
-		}
-		Iris.fatal = function(x, ?pos:haxe.PosInfos) {
-			Iris.logLevel(FATAL, x, pos);
-			var newPos:HScriptInfos = cast pos;
-			if (newPos.showLine == null) newPos.showLine = true;
-			var msgInfo:String = (newPos.funcName != null ? '(${newPos.funcName}) - ' : '')  + '${newPos.fileName}:';
-			#if LUA_ALLOWED
-			if (newPos.isLua == true) {
-				msgInfo += 'HScript:';
-				newPos.showLine = false;
-			}
-			#end
-			if (newPos.showLine == true) {
-				msgInfo += '${newPos.lineNumber}:';
-			}
-			msgInfo += ' $x';
-			if (PlayState.instance != null)
-				PlayState.instance.addTextToDebug('FATAL: $msgInfo', 0xFFBB0000);
-		}
-		#end
-
-		#if LUA_ALLOWED Lua.set_callbacks_function(cpp.Callable.fromStaticFunction(psychlua.CallbackHandler.call)); #end
-		Controls.instance = new Controls();
-		ClientPrefs.loadDefaultKeys();
+		// #if LUA_ALLOWED Lua.set_callbacks_function(cpp.Callable.fromStaticFunction(psychlua.CallbackHandler.call)); #end
+		ClientPrefs.loadDefaultStuff();
 		#if ACHIEVEMENTS_ALLOWED Achievements.load(); #end
-		#if mobile
-		FlxG.signals.postGameStart.addOnce(() -> {
-			FlxG.scaleMode = new MobileScaleMode();
-		});
-		#end
-		addChild(new FlxGame(game.width, game.height, #if COPYSTATE_ALLOWED !CopyState.checkExistingFiles() ? CopyState : #end game.initialState, game.framerate, game.framerate, game.skipSplash, game.startFullscreen));
 
-		fpsVar = new FPSCounter(10, 3, 0xFFFFFF);
+		addChild(new FlxGame(game.width, game.height, game.initialState, #if (flixel < "5.0.0") game.zoom, #end game.framerate, game.framerate, game.skipSplash, game.startFullscreen));
+
+		fpsVar = new FPSCounter(3, 3, 0x00FFFFFF);
 		addChild(fpsVar);
-		Lib.current.stage.align = "tl";
-		Lib.current.stage.scaleMode = StageScaleMode.NO_SCALE;
-		if(fpsVar != null) {
-			fpsVar.visible = ClientPrefs.data.showFPS;
+
+		if (fpsVar != null) {
+			fpsVar.visible = ClientPrefs.showFPS;
 		}
+
+		#if (!web && flixel < "5.5.0")
+		FlxG.plugins.add(new ScreenShotPlugin());
+		#elseif (flixel >= "5.6.0")
+		FlxG.plugins.addIfUniqueType(new ScreenShotPlugin());
+		#end
+
+		FlxG.autoPause = false;
 
 		#if linux
 		var icon = Image.fromFile("icon.png");
 		Lib.current.stage.window.setIcon(icon);
 		#end
 
-		#if html5
-		FlxG.autoPause = false;
-		FlxG.mouse.visible = false;
-		#end
-
-		FlxG.fixedTimestep = false;
-		FlxG.game.focusLostFramerate = #if mobile 30 #else 60 #end;
-		#if web
-		FlxG.keys.preventDefaultKeys.push(TAB);
-		#else
-		FlxG.keys.preventDefaultKeys = [TAB];
-		#end
-
-		#if DISCORD_ALLOWED
-		DiscordClient.prepare();
-		#end
-		
-		#if desktop FlxG.stage.addEventListener(KeyboardEvent.KEY_UP, toggleFullScreen); #end
-
-		#if android FlxG.android.preventDefaultKeys = [BACK]; #end
-
-		#if mobile
-		LimeSystem.allowScreenTimeout = ClientPrefs.data.screensaver;
-		#end
+		#if DISCORD_ALLOWED DiscordClient.prepare(); #end
 
 		// shader coords fix
-		FlxG.signals.gameResized.add(function (w, h) {
-			if(fpsVar != null)
-				fpsVar.positionFPS(10, 3, Math.min(w / FlxG.width, h / FlxG.height));
-		     if (FlxG.cameras != null) {
-			   for (cam in FlxG.cameras.list) {
-				if (cam != null && cam.filters != null)
-					resetSpriteCache(cam.flashSprite);
-			   }
-			}
+		FlxG.signals.gameResized.add(function(w, h) {
+			if (FlxG.cameras != null) {
+			  	for (cam in FlxG.cameras.list) {
+			   		if (cam != null && cam.filters != null)
+				   		resetSpriteCache(cam.flashSprite);
+			  	}
+		   	}
 
-			if (FlxG.game != null)
-			resetSpriteCache(FlxG.game);
-		});
+		   if (FlxG.game != null) resetSpriteCache(FlxG.game);
+	   });
 	}
 
 	static function resetSpriteCache(sprite:Sprite):Void {
 		@:privateAccess {
-		        sprite.__cacheBitmap = null;
+		    sprite.__cacheBitmap = null;
 			sprite.__cacheBitmapData = null;
 		}
 	}
 
-	function toggleFullScreen(event:KeyboardEvent) {
-		if (Controls.instance.justReleased('fullscreen'))
-			FlxG.fullscreen = !FlxG.fullscreen;
+	public static function changeFPSColor(color:FlxColor) {
+		fpsVar.textColor = color;
 	}
 }

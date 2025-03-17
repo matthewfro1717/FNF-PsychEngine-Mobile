@@ -5,6 +5,7 @@ import openfl.events.Event;
 import openfl.geom.Matrix;
 import flash.display.BitmapData;
 import openfl.Lib;
+import Achievements;
 
 class AchievementPopup extends openfl.display.Sprite {
 	public var onFinish:Void->Void = null;
@@ -20,29 +21,29 @@ class AchievementPopup extends openfl.display.Sprite {
 
 		// achievement icon
 		var graphic = null;
-		var hasAntialias:Bool = ClientPrefs.data.antialiasing;
+		var hasAntialias:Bool = ClientPrefs.globalAntialiasing;
 		var image:String = 'achievements/$achieve';
 		
 		var achievement:Achievement = null;
 		if(Achievements.exists(achieve)) achievement = Achievements.get(achieve);
 
 		#if MODS_ALLOWED
-		var lastMod = Mods.currentModDirectory;
-		if(achievement != null) Mods.currentModDirectory = achievement.mod != null ? achievement.mod : '';
+		var lastMod = Paths.currentModDirectory;
+		if(achievement != null) Paths.currentModDirectory = achievement.mod != null ? achievement.mod : '';
 		#end
 
 		if(Paths.fileExists('images/$image-pixel.png', IMAGE))
 		{
-			graphic = Paths.image('$image-pixel', false);
+			graphic = Paths.image('$image-pixel');
 			hasAntialias = false;
 		}
-		else graphic = Paths.image(image, false);
+		else graphic = Paths.image(image);
 
 		#if MODS_ALLOWED
-		Mods.currentModDirectory = lastMod;
+		Paths.currentModDirectory = lastMod;
 		#end
 
-		if(graphic == null) graphic = Paths.image('unknownMod', false);
+		if(graphic == null) graphic = Paths.image('unknownMod');
 
 		var sizeX = 100;
 		var sizeY = 100;
@@ -58,8 +59,8 @@ class AchievementPopup extends openfl.display.Sprite {
 		var desc:String = 'Description not found';
 		if(achievement != null)
 		{
-			if(achievement.name != null) name = Language.getPhrase('achievement_$achieve', achievement.name);
-			if(achievement.description != null)  desc = Language.getPhrase('description_$achieve', achievement.description);
+			if(achievement.name != null) name = achievement.name;
+			if(achievement.description != null)  desc = achievement.description;
 		}
 
 		var textX = sizeX + imgX + 15;

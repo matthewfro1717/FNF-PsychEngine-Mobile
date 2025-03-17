@@ -1,162 +1,108 @@
 package debug;
 
-import flixel.FlxG;
-import openfl.Lib;
-import haxe.Timer;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
-import openfl.system.System as OpenFlSystem;
-import lime.system.System as LimeSystem;
+import flixel.util.FlxStringUtil;
+import lime.system.System;
+import debug.Memory;
 
-/**
-	The FPS class provides an easy-to-use monitor to display
-	the current frame rate of an OpenFL project
-**/
-#if cpp
-#if windows
-@:cppFileCode('#include <windows.h>')
-#elseif (ios || mac)
-@:cppFileCode('#include <mach-o/arch.h>')
-#else
-@:headerInclude('sys/utsname.h')
-#end
-#end
 class FPSCounter extends TextField
 {
-	/**
-		The current frame rate, expressed using frames-per-second
-	**/
-	public var currentFPS(default, null):Int;
+	public var currentFPS(default, null):Float;
 
 	/**
 		The current memory usage (WARNING: this is NOT your total program memory usage, rather it shows the garbage collector memory)
 	**/
-	public var memoryMegas(get, never):Float;
+	public var memory(get, never):Float;
+	inline function get_memory():Float
+		return Memory.gay();
 
-	@:noCompletion private var lastFramerateUpdateTime:Float;
-	@:noCompletion private var updateTime:Int;
-	@:noCompletion private var framesCount:Int;
-	@:noCompletion private var prevTime:Int;
+	var mempeak:Float = 0;
 
-	public var os:String = '';
+	@:noCompletion private var times:Array<Float>;
 
-	public function new(x:Float = 10, y:Float = 10, color:Int = 0x000000)
+	public function new(x:Float = 10, y:Float = 10, color:Int = 0x00000000)
 	{
 		super();
 
-		#if !officialBuild
-		if (LimeSystem.platformName == LimeSystem.platformVersion || LimeSystem.platformVersion == null)
-			os = '\nOS: ${LimeSystem.platformName}' #if cpp + ' ${getArch() != 'Unknown' ? getArch() : ''}' #end;
-		else
-			os = '\nOS: ${LimeSystem.platformName}' #if cpp + ' ${getArch() != 'Unknown' ? getArch() : ''}' #end + ' - ${LimeSystem.platformVersion}';
-		#end
-
-		positionFPS(x, y);
+		this.x = x;
+		this.y = y;
 
 		currentFPS = 0;
 		selectable = false;
 		mouseEnabled = false;
-		defaultTextFormat = new TextFormat("_sans", 14, color);
-		width = FlxG.width;
+		defaultTextFormat = new TextFormat("VCR OSD Mono", 12, color);
+		autoSize = LEFT;
 		multiline = true;
 		text = "FPS: ";
 
-		lastFramerateUpdateTime = Timer.stamp();
-		prevTime = Lib.getTimer();
-		updateTime = prevTime + 500;
+		times = [];
 	}
 
+	var timeColor:Float = 0.0;
 
-	public dynamic function updateText():Void // so people can override it in hscript
+	var fpsMultiplier:Float = 1.0;
+	var deltaTimeout:Float = 0.0;
+	public var timeoutDelay:Float = 50;
+	var now:Float = 0;
+	// Event Handlers
+	override function __enterFrame(deltaTime:Float):Void
 	{
-		text = 
-		'FPS: $currentFPS' + 
-		'\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}' +
-		os;
-
-		textColor = 0xFFFFFFFF;
-		if (currentFPS < FlxG.stage.window.frameRate * 0.5)
-			textColor = 0xFFFF0000;
-	}
-
-	private override function __enterFrame(deltaTime:Float):Void
-	{
-		// Flixel keeps reseting this to 60 on focus gained
-		if (FlxG.stage.window.frameRate != ClientPrefs.data.framerate && FlxG.stage.window.frameRate != FlxG.game.focusLostFramerate)
-			FlxG.stage.window.frameRate = ClientPrefs.data.framerate;
-
-		var currentTime = openfl.Lib.getTimer();
-		framesCount++;
-
-		if (currentTime >= updateTime)
+		if (!ClientPrefs.showFPS) return;
+		now = haxe.Timer.stamp() * 1000;
+		times.push(now);
+		while (times[0] < now - 1000 / fpsMultiplier) times.shift();
+		if (deltaTimeout <= timeoutDelay)
 		{
-			var elapsed = currentTime - prevTime;
-			currentFPS = Math.ceil((framesCount * 1000) / elapsed);
-			framesCount = 0;
-			prevTime = currentTime;
-			updateTime = currentTime + 500;
+			deltaTimeout += deltaTime;
+			return;
 		}
 
-		// Set Update and Draw framerate to the current FPS every 1.5 second to prevent "slowness" issue
-		if ((FlxG.updateFramerate >= currentFPS + 5 || FlxG.updateFramerate <= currentFPS - 5)
-			&& haxe.Timer.stamp() - lastFramerateUpdateTime >= 1.5
-			&& currentFPS >= 30)
+		if (Std.isOfType(FlxG.state, PlayState) && !PlayState.instance.trollingMode)
 		{
-			FlxG.updateFramerate = FlxG.drawFramerate = currentFPS;
-			lastFramerateUpdateTime = haxe.Timer.stamp();
+			try { fpsMultiplier = PlayState.instance.playbackRate; }
+			catch (e:Dynamic) { fpsMultiplier = 1.0; }
 		}
+		else fpsMultiplier = 1.0;
 
+		if (memory > mempeak) mempeak = memory;
+
+		currentFPS = Math.min(FlxG.drawFramerate, times.length) / fpsMultiplier;
 		updateText();
-	}
 
-	inline function get_memoryMegas():Float
-		return cpp.vm.Gc.memInfo64(cpp.vm.Gc.MEM_INFO_USAGE);
-
-	public inline function positionFPS(X:Float, Y:Float, ?scale:Float = 1){
-		scaleX = scaleY = #if android (scale > 1 ? scale : 1) #else (scale < 1 ? scale : 1) #end;
-		x = FlxG.game.x + X;
-		y = FlxG.game.y + Y;
-	}
-
-	#if cpp
-	#if windows
-	@:functionCode('
-		SYSTEM_INFO osInfo;
-
-		GetSystemInfo(&osInfo);
-
-		switch(osInfo.wProcessorArchitecture)
+		if (ClientPrefs.rainbowFPS)
 		{
-			case 9:
-				return ::String("x86_64");
-			case 5:
-				return ::String("ARM");
-			case 12:
-				return ::String("ARM64");
-			case 6:
-				return ::String("IA-64");
-			case 0:
-				return ::String("x86");
-			default:
-				return ::String("Unknown");
+			timeColor = (timeColor % 360.0) + (1.0 / (ClientPrefs.framerate / 120));
+			textColor = FlxColor.fromHSB(timeColor, 1, 1);
 		}
-	')
-	#elseif (ios || mac)
-	@:functionCode('
-		const NXArchInfo *archInfo = NXGetLocalArchInfo();
-    	return ::String(archInfo == NULL ? "Unknown" : archInfo->name);
-	')
-	#else
-	@:functionCode('
-		struct utsname osInfo{};
-		uname(&osInfo);
-		return ::String(osInfo.machine);
-	')
-	#end
-	@:noCompletion
-	private function getArch():String
-	{
-		return "Unknown";
+		else if (!ClientPrefs.ffmpegMode)
+		{
+			textColor = 0xFFFFFFFF;
+			if (currentFPS <= ClientPrefs.framerate / 2 && currentFPS >= ClientPrefs.framerate / 3)
+				textColor = 0xFFFFFF00;
+
+			if (currentFPS <= ClientPrefs.framerate / 3 && currentFPS >= ClientPrefs.framerate / 4)
+				textColor = 0xFFFF8000;
+
+			if (currentFPS <= ClientPrefs.framerate / 4)
+				textColor = 0xFFFF0000;
+		}
+		deltaTimeout = 0.0;
 	}
-	#end
+
+	public dynamic function updateText():Void   // so people can override it in hscript
+	{
+		text = "FPS: " + (ClientPrefs.ffmpegMode ? ClientPrefs.targetFPS : Math.round(currentFPS));
+		if (ClientPrefs.ffmpegMode)
+			text += " (Rendering Mode)";
+
+		if (ClientPrefs.showRamUsage) text += "\nMemory: " + FlxStringUtil.formatBytes(memory) + (ClientPrefs.showMaxRamUsage ? " / " + FlxStringUtil.formatBytes(mempeak) : "");
+		if (ClientPrefs.debugInfo)
+		{
+			text += '\nCurrent state: ${Type.getClassName(Type.getClass(FlxG.state))}';
+			if (FlxG.state.subState != null)
+				text += '\nCurrent substate: ${Type.getClassName(Type.getClass(FlxG.state.subState))}';
+			#if !linux text += "\nOS: " + '${System.platformLabel} ${System.platformVersion}'; #end
+		}
+	}
 }
