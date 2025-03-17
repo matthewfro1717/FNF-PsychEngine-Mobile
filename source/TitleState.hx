@@ -194,6 +194,8 @@ class TitleState extends MusicBeatState
 	var swagShader:ColorSwap = null;
 
 	var wheatley:Bool = false;
+	
+	var insertWhateveryouWantHere:Dynamic = null;
 
 	/***************/
     /*    VIDEO    */
@@ -205,7 +207,6 @@ class TitleState extends MusicBeatState
 		var foundFile:Bool = false;
 		var fileName:String = Paths.video(name, library);
 
-		var insertWhateveryouWantHere:Dynamic = null;
 		// for source modders
 		insertWhateveryouWantHere = function(){
 			if (wheatley)
