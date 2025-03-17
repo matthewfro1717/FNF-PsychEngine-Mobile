@@ -112,8 +112,14 @@
 	<!-- _______________________________ Libraries ______________________________ -->
 
 	<haxelib name="flixel"/>
-	<haxelib name="flixel-addons" version="3.2.2"/>
-	<haxelib name="tjson" version="1.4.0"/>
+	<haxelib name="flixel-ui" version="2.6.1" />
+	<haxelib name="flixel-addons" version="3.2.3" />
+	<haxelib name="away3d" version="git"/>
+
+	<!--JS stuff needed-->
+	<haxelib name="hscript" />
+	<haxedef name="hscriptPos" />
+	<!--<haxelib name="hxCodec" if="VIDEOS_ALLOWED"/>-->
 
 	<!--Psych stuff needed-->
 	<haxelib name="linc_luajit" if="LUA_ALLOWED"/>
